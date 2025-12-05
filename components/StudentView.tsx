@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, BookOpen, MessageCircle, Send, Star, Clock, Wallet } from 'lucide-react';
-import { Book, Category, User, ThemeColor, LibraryMessage, Review, BorrowHistory } from '../types';
+import { Search, BookOpen, MessageCircle, Send, Star, Clock, Wallet, Sparkles, Loader2, X, Mic, Trophy, Award, Medal } from 'lucide-react';
+import { Book, Category, User, ThemeColor, LibraryMessage, Review, BorrowHistory, AIRecommendation } from '../types';
 import { BookDetailsModal } from './BookDetailsModal';
 import { WalletPanel } from './WalletPanel';
+import { getBookRecommendations } from '../services/geminiService';
 
 interface StudentViewProps {
   books: Book[];
@@ -27,6 +28,14 @@ export const StudentView: React.FC<StudentViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [chatInput, setChatInput] = useState('');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  
+  // Voice Search State
+  const [isListening, setIsListening] = useState(false);
+  
+  // AI Recommendation State
+  const [recommendations, setRecommendations] = useState<AIRecommendation[]>([]);
+  const [isGeneratingRecs, setIsGeneratingRecs] = useState(false);
+  const [showRecs, setShowRecs] = useState(false);
 
   const filteredBooks = books.filter(book => {
     const matchesSearch = book.title.toLowerCase().includes(filter.toLowerCase()) || book.author.toLowerCase().includes(filter.toLowerCase());
@@ -42,6 +51,78 @@ export const StudentView: React.FC<StudentViewProps> = ({
     setChatInput('');
   };
 
+  const handleGetRecommendations = async () => {
+    setIsGeneratingRecs(true);
+    setShowRecs(true);
+    
+    const userHistoryTitles = borrowHistory
+      .filter(h => h.userId === currentUser.id)
+      .map(h => h.bookTitle);
+      
+    const recs = await getBookRecommendations(userHistoryTitles, books);
+    setRecommendations(recs);
+    setIsGeneratingRecs(false);
+  };
+
+  // Voice Search Logic
+  const startListening = () => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setFilter(transcript);
+      };
+
+      recognition.start();
+    } else {
+      alert("Voice search is not supported in this browser.");
+    }
+  };
+
+  // Gamification Logic
+  const myHistory = borrowHistory.filter(h => h.userId === currentUser.id);
+  const myReviews = books.reduce((acc, book) => acc + book.reviews.filter(r => r.userId === currentUser.id).length, 0);
+  
+  const badges = [
+    { 
+      id: 1, 
+      name: 'Novice Reader', 
+      desc: 'Borrowed your first book', 
+      icon: <BookOpen size={20} />, 
+      color: 'blue', 
+      earned: myHistory.length > 0 
+    },
+    { 
+      id: 2, 
+      name: 'Bookworm', 
+      desc: 'Borrowed 5+ books', 
+      icon: <Trophy size={20} />, 
+      color: 'yellow', 
+      earned: myHistory.length >= 5 
+    },
+    { 
+      id: 3, 
+      name: 'The Critic', 
+      desc: 'Left your first review', 
+      icon: <Star size={20} />, 
+      color: 'purple', 
+      earned: myReviews > 0 
+    },
+    { 
+      id: 4, 
+      name: 'Responsible', 
+      desc: 'No current fines', 
+      icon: <Medal size={20} />, 
+      color: 'green', 
+      earned: currentUser.fines === 0 && myHistory.length > 0
+    }
+  ];
+
   return (
     <div className="space-y-6">
       {/* Modal */}
@@ -54,16 +135,30 @@ export const StudentView: React.FC<StudentViewProps> = ({
       />
 
       {/* Hero */}
-      <div className="relative h-48 rounded-3xl overflow-hidden shadow-lg">
+      <div className="relative h-64 md:h-56 rounded-3xl overflow-hidden shadow-lg group">
         <img 
           src="https://picsum.photos/1200/400?grayscale&blur=1" 
           alt="Student Dashboard" 
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
-        <div className={`absolute inset-0 bg-${themeColor}-900/60 flex items-center px-8 backdrop-blur-sm`}>
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2 font-serif">Hello, Student</h1>
-            <p className="text-white/80">Explore worlds within pages.</p>
+        <div className={`absolute inset-0 bg-${themeColor}-900/60 flex flex-col justify-center px-8 backdrop-blur-sm`}>
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 font-serif">Hello, {currentUser.name.split(' ')[0]}</h1>
+          <p className="text-white/80 max-w-lg mb-6">Explore worlds within pages. Your next great adventure is just a click away.</p>
+          
+          <div className="flex flex-wrap gap-3">
+            <button 
+              onClick={() => setActiveTab('browse')}
+              className={`bg-white text-${themeColor}-900 px-6 py-2.5 rounded-xl font-bold hover:bg-gray-100 transition-colors shadow-lg`}
+            >
+              Browse Library
+            </button>
+            <button 
+              onClick={handleGetRecommendations}
+              className={`bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2.5 rounded-xl font-bold hover:opacity-90 transition-all shadow-lg flex items-center gap-2`}
+            >
+              <Sparkles size={18} className="animate-pulse" />
+              AI Recommendations
+            </button>
           </div>
         </div>
       </div>
@@ -80,7 +175,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
           onClick={() => setActiveTab('history')}
           className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'history' ? `bg-${themeColor}-600 text-white shadow-md shadow-${themeColor}-500/30` : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
         >
-          <Clock size={18} /> History
+          <Award size={18} /> Achievements & History
         </button>
         <button
           onClick={() => setActiveTab('wallet')}
@@ -103,6 +198,61 @@ export const StudentView: React.FC<StudentViewProps> = ({
       >
         {activeTab === 'browse' && (
           <>
+            {/* AI Recommendations Section */}
+            {showRecs && (
+              <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                className="mb-8 overflow-hidden"
+              >
+                <div className={`bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-6 rounded-2xl border border-purple-100 dark:border-purple-800/50 relative`}>
+                  <button 
+                    onClick={() => setShowRecs(false)}
+                    className="absolute top-4 right-4 p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full"
+                  >
+                    <X size={16} className="text-gray-500" />
+                  </button>
+                  
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-purple-900 dark:text-purple-100">
+                    <Sparkles size={20} className="text-purple-500" /> 
+                    Smart Recommendations for You
+                  </h3>
+
+                  {isGeneratingRecs ? (
+                    <div className="py-8 flex flex-col items-center justify-center text-purple-600 dark:text-purple-300">
+                      <Loader2 size={32} className="animate-spin mb-3" />
+                      <p>Analyzing your reading history and finding the perfect match...</p>
+                    </div>
+                  ) : recommendations.length === 0 ? (
+                    <p className="text-center py-4 text-gray-500">Could not generate recommendations at this time.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {recommendations.map((rec, idx) => {
+                        const book = books.find(b => b.id === rec.bookId);
+                        if (!book) return null;
+                        return (
+                          <div 
+                            key={idx}
+                            onClick={() => setSelectedBook(book)}
+                            className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-purple-100 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer flex gap-4"
+                          >
+                             <img src={book.coverUrl} className="w-16 h-24 object-cover rounded-md flex-shrink-0" alt={book.title} />
+                             <div>
+                               <h4 className="font-bold text-gray-800 dark:text-white line-clamp-1">{book.title}</h4>
+                               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{book.author}</p>
+                               <div className="bg-purple-100 dark:bg-purple-900/40 p-2 rounded-lg">
+                                 <p className="text-xs text-purple-800 dark:text-purple-200 italic leading-snug">"{rec.reason}"</p>
+                               </div>
+                             </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
             {/* Filters */}
             <div className="flex flex-col md:flex-row gap-4 bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors mb-6">
               <div className="relative flex-1">
@@ -110,10 +260,17 @@ export const StudentView: React.FC<StudentViewProps> = ({
                 <input
                   type="text"
                   placeholder="Search books by title or author..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 />
+                <button 
+                  onClick={startListening}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                  title="Voice Search"
+                >
+                  <Mic size={18} />
+                </button>
               </div>
               <select
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -186,46 +343,85 @@ export const StudentView: React.FC<StudentViewProps> = ({
             {filteredBooks.length === 0 && (
               <div className="text-center py-20 text-gray-400">
                 No books found matching your criteria.
+                {isListening && <p className="mt-2 text-red-500 animate-pulse">Listening...</p>}
               </div>
             )}
           </>
         )}
 
         {activeTab === 'history' && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 transition-colors">
-            <h3 className="text-xl font-bold mb-6 font-serif flex items-center gap-2">
-              <Clock className={`text-${themeColor}-500`} /> Reading History
-            </h3>
-            
-            {borrowHistory.filter(h => h.userId === currentUser.id).length === 0 ? (
-              <div className="text-center py-10 text-gray-400 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
-                You haven't returned any books yet.
+          <div className="space-y-6">
+            {/* Gamification / Badges Section */}
+            <div className={`bg-gradient-to-br from-${themeColor}-500 to-${themeColor}-700 rounded-2xl p-6 text-white shadow-lg`}>
+              <div className="flex items-center gap-3 mb-6">
+                <Trophy size={28} className="text-yellow-300" />
+                <div>
+                  <h3 className="text-xl font-bold font-serif">Your Achievements</h3>
+                  <p className="text-white/80 text-sm">Unlock badges as you read and review!</p>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {borrowHistory.filter(h => h.userId === currentUser.id).map(record => (
-                  <div key={record.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/20">
-                     <img src={record.bookCoverUrl} alt="cover" className="w-16 h-20 object-cover rounded-lg shadow-sm" />
-                     <div className="flex-1">
-                       <h4 className="font-bold text-gray-900 dark:text-gray-100">{record.bookTitle}</h4>
-                       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500 dark:text-gray-400 mt-1">
-                         <span>Borrowed: {new Date(record.borrowDate).toLocaleDateString()}</span>
-                         <span>Returned: {new Date(record.returnDate).toLocaleDateString()}</span>
-                       </div>
-                     </div>
-                     <button 
-                       onClick={() => {
-                          const book = books.find(b => b.id === record.bookId);
-                          if(book) setSelectedBook(book);
-                       }}
-                       className={`px-4 py-2 rounded-lg text-sm border border-${themeColor}-200 text-${themeColor}-600 hover:bg-${themeColor}-50 font-medium`}
-                     >
-                       Write Review
-                     </button>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {badges.map((badge) => (
+                  <div 
+                    key={badge.id} 
+                    className={`bg-white/10 backdrop-blur-md rounded-xl p-4 border transition-all ${
+                      badge.earned 
+                        ? 'border-white/30 opacity-100' 
+                        : 'border-white/5 opacity-50 grayscale'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full bg-white/20 flex items-center justify-center mb-3 ${badge.earned ? 'text-yellow-300' : 'text-white'}`}>
+                      {badge.icon}
+                    </div>
+                    <h4 className="font-bold text-sm mb-1">{badge.name}</h4>
+                    <p className="text-xs text-white/70">{badge.desc}</p>
+                    {badge.earned && (
+                      <div className="mt-2 text-xs bg-white/20 text-white px-2 py-0.5 rounded-full w-fit">
+                        Unlocked
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+
+            {/* Reading History List */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 transition-colors">
+              <h3 className="text-xl font-bold mb-6 font-serif flex items-center gap-2">
+                <Clock className={`text-${themeColor}-500`} /> Reading History
+              </h3>
+              
+              {myHistory.length === 0 ? (
+                <div className="text-center py-10 text-gray-400 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
+                  You haven't returned any books yet.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myHistory.map(record => (
+                    <div key={record.id} className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/20">
+                       <img src={record.bookCoverUrl} alt="cover" className="w-16 h-20 object-cover rounded-lg shadow-sm" />
+                       <div className="flex-1">
+                         <h4 className="font-bold text-gray-900 dark:text-gray-100">{record.bookTitle}</h4>
+                         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500 dark:text-gray-400 mt-1">
+                           <span>Borrowed: {new Date(record.borrowDate).toLocaleDateString()}</span>
+                           <span>Returned: {new Date(record.returnDate).toLocaleDateString()}</span>
+                         </div>
+                       </div>
+                       <button 
+                         onClick={() => {
+                            const book = books.find(b => b.id === record.bookId);
+                            if(book) setSelectedBook(book);
+                         }}
+                         className={`px-4 py-2 rounded-lg text-sm border border-${themeColor}-200 text-${themeColor}-600 hover:bg-${themeColor}-50 font-medium`}
+                       >
+                         Write Review
+                       </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

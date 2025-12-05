@@ -56,6 +56,11 @@ export interface BorrowHistory {
   returnDate: string;
 }
 
+export interface AIRecommendation {
+  bookId: string;
+  reason: string;
+}
+
 export interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
