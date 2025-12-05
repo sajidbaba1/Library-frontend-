@@ -5,12 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LibraMinds</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Playfair Display', 'serif'],
+              mono: ['Roboto Mono', 'monospace'],
+              poppins: ['Poppins', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f3f4f6;
       }
+      .font-poppins { font-family: 'Poppins', sans-serif; }
+      .font-serif { font-family: 'Playfair Display', serif; }
+      .font-mono { font-family: 'Roboto Mono', monospace; }
     </style>
   <script type="importmap">
 {
@@ -26,7 +43,7 @@
 }
 </script>
 </head>
-  <body>
+  <body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
     <div id="root"></div>
   </body>
 </html>

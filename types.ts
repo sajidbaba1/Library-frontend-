@@ -1,10 +1,16 @@
 export type Role = 'admin' | 'librarian' | 'student';
 
+export type ThemeColor = 'indigo' | 'blue' | 'teal' | 'emerald' | 'rose' | 'orange' | 'purple' | 'cyan';
+
+export type FontOption = 'inter' | 'poppins' | 'serif' | 'mono';
+
 export interface User {
   id: string;
   username: string;
   role: Role;
   name: string;
+  avatarSeed?: string;
+  bio?: string;
 }
 
 export interface Category {
@@ -22,6 +28,8 @@ export interface Book {
   coverUrl: string;
   isBorrowed: boolean;
   borrowedBy?: string; // User ID
+  borrowDate?: string; // ISO Date string
+  dueDate?: string; // ISO Date string
 }
 
 export interface AuthState {
@@ -35,4 +43,13 @@ export interface ChatMessage {
   sender: 'user' | 'ai';
   text: string;
   isLoading?: boolean;
+}
+
+export interface LibraryMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: number;
+  isFromLibrarian: boolean;
 }
