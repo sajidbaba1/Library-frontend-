@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, BookOpen, MessageCircle, Send, Star, Clock, Wallet, Sparkles, Loader2, X, Mic, Trophy, Award, Medal, ChevronLeft, ChevronRight, Check } from 'lucide-react';
-import { Book, Category, User, ThemeColor, LibraryMessage, Review, BorrowHistory, AIRecommendation, MembershipTier } from '../types';
+import { Search, BookOpen, MessageCircle, Send, Star, Clock, Wallet, Sparkles, Loader2, X, Mic, Trophy, Award, Medal, ChevronLeft, ChevronRight, Check, Bookmark } from 'lucide-react';
+import { Book, Category, User, ThemeColor, LibraryMessage, Review, BorrowHistory, AIRecommendation, MembershipTier, TIER_RULES } from '../types';
 import { BookDetailsModal } from './BookDetailsModal';
 import { WalletPanel } from './WalletPanel';
 import { getBookRecommendations } from '../services/geminiService';
@@ -10,6 +10,7 @@ interface StudentViewProps {
   books: Book[];
   categories: Category[];
   handleBorrow: (bookId: string) => void;
+  handleReserve: (bookId: string) => void;
   currentUser: User;
   themeColor: ThemeColor;
   messages: LibraryMessage[];
@@ -22,7 +23,7 @@ interface StudentViewProps {
 }
 
 export const StudentView: React.FC<StudentViewProps> = ({ 
-  books, categories, handleBorrow, currentUser, themeColor, messages, sendMessage, onAddReview, borrowHistory, onAddFunds, onPayFine, onUpgradeTier 
+  books, categories, handleBorrow, handleReserve, currentUser, themeColor, messages, sendMessage, onAddReview, borrowHistory, onAddFunds, onPayFine, onUpgradeTier 
 }) => {
   const [activeTab, setActiveTab] = useState<'browse' | 'chat' | 'history' | 'wallet'>('browse');
   const [filter, setFilter] = useState('');
@@ -107,6 +108,8 @@ export const StudentView: React.FC<StudentViewProps> = ({
     { id: 3, name: 'The Critic', desc: 'Left your first review', icon: <Star size={20} />, color: 'purple', earned: myReviews > 0 },
     { id: 4, name: 'Responsible', desc: 'No current fines', icon: <Medal size={20} />, color: 'green', earned: currentUser.fines === 0 && myHistory.length > 0 }
   ];
+
+  const canReserve = TIER_RULES[currentUser.tier].maxReservations > 0;
 
   return (
     <div className="space-y-8">
@@ -321,61 +324,96 @@ export const StudentView: React.FC<StudentViewProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-                {filteredBooks.map(book => (
-                  <motion.div
-                    key={book.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    whileHover={{ y: -8 }}
-                    className="group relative bg-white dark:bg-gray-800 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-gray-700 cursor-pointer"
-                    onClick={() => setSelectedBook(book)}
-                  >
-                    {/* Glossy Effect Layer */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 pointer-events-none z-10 transition-opacity duration-500">
-                      <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
-                    </div>
-
-                    <div className="h-64 overflow-hidden relative">
-                      <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1" />
-                      <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
-                        <Star size={12} className="text-yellow-500 fill-current" />
-                        {book.rating.toFixed(1)}
-                      </div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
-                      <div className="absolute bottom-4 left-4 right-4">
-                         <span className="text-xs font-bold text-white/80 uppercase tracking-wider mb-1 block">{getCategoryName(book.categoryId)}</span>
-                         <h3 className="font-bold text-white text-xl leading-tight font-serif shadow-black drop-shadow-md">{book.title}</h3>
-                      </div>
-                    </div>
-                    
-                    <div className="p-5">
-                      <div className="flex justify-between items-center mb-4">
-                        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">by {book.author}</p>
-                        <span className={`w-2 h-2 rounded-full ${book.isBorrowed ? 'bg-orange-400' : 'bg-green-400'}`} />
+                {filteredBooks.map(book => {
+                  const isReservedByMe = book.reservedBy === currentUser.id;
+                  const isReservedByOther = book.reservedBy && !isReservedByMe;
+                  
+                  return (
+                    <motion.div
+                      key={book.id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{ y: -8 }}
+                      className="group relative bg-white dark:bg-gray-800 rounded-3xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-gray-700 cursor-pointer"
+                      onClick={() => setSelectedBook(book)}
+                    >
+                      {/* Glossy Effect Layer */}
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 pointer-events-none z-10 transition-opacity duration-500">
+                        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
                       </div>
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleBorrow(book.id);
-                        }}
-                        disabled={book.isBorrowed}
-                        className={`w-full py-3 rounded-xl font-bold text-sm transition-all transform active:scale-95 ${
-                          book.isBorrowed
-                            ? book.borrowedBy === currentUser.id 
-                                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300 border border-blue-100 dark:border-blue-800'
-                                : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed'
-                            : `bg-${themeColor}-600 text-white shadow-lg shadow-${themeColor}-500/30 hover:shadow-${themeColor}-500/50 hover:bg-${themeColor}-700`
-                        }`}
-                      >
-                        {book.isBorrowed 
-                            ? (book.borrowedBy === currentUser.id ? 'Borrowed' : 'Unavailable') 
-                            : 'Borrow Now'}
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+                      <div className="h-64 overflow-hidden relative">
+                        <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1" />
+                        <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                          <Star size={12} className="text-yellow-500 fill-current" />
+                          {book.rating.toFixed(1)}
+                        </div>
+                        {isReservedByMe && (
+                           <div className="absolute top-3 left-3 bg-purple-500 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1">
+                             <Bookmark size={12} fill="currentColor" /> Reserved
+                           </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <span className="text-xs font-bold text-white/80 uppercase tracking-wider mb-1 block">{getCategoryName(book.categoryId)}</span>
+                          <h3 className="font-bold text-white text-xl leading-tight font-serif shadow-black drop-shadow-md">{book.title}</h3>
+                        </div>
+                      </div>
+                      
+                      <div className="p-5">
+                        <div className="flex justify-between items-center mb-4">
+                          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">by {book.author}</p>
+                          <span className={`w-2 h-2 rounded-full ${book.isBorrowed ? (isReservedByMe ? 'bg-purple-400' : 'bg-orange-400') : 'bg-green-400'}`} />
+                        </div>
+
+                        {book.isBorrowed ? (
+                          <div className="flex gap-2">
+                             <button
+                                onClick={(e) => e.stopPropagation()}
+                                disabled={true}
+                                className="flex-1 py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed"
+                              >
+                                {book.borrowedBy === currentUser.id ? 'Borrowed' : 'Unavailable'}
+                              </button>
+                              
+                              {!book.borrowedBy || book.borrowedBy !== currentUser.id ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleReserve(book.id);
+                                  }}
+                                  disabled={!!book.reservedBy && !isReservedByMe}
+                                  className={`px-3 rounded-xl font-bold text-sm transition-all ${
+                                    isReservedByMe 
+                                      ? 'bg-purple-100 text-purple-600 border border-purple-200 cursor-default'
+                                      : isReservedByOther
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : canReserve 
+                                          ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                          : 'bg-gray-200 text-gray-500 hover:bg-gray-300'
+                                  }`}
+                                  title={!canReserve ? "Upgrade Tier to Reserve" : isReservedByOther ? "Reserved by another user" : "Reserve this book"}
+                                >
+                                  {isReservedByMe ? <Check size={18} /> : <Bookmark size={18} />}
+                                </button>
+                              ) : null}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleBorrow(book.id);
+                            }}
+                            className={`w-full py-3 rounded-xl font-bold text-sm transition-all transform active:scale-95 bg-${themeColor}-600 text-white shadow-lg shadow-${themeColor}-500/30 hover:shadow-${themeColor}-500/50 hover:bg-${themeColor}-700`}
+                          >
+                            Borrow Now
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
               
               {filteredBooks.length === 0 && (

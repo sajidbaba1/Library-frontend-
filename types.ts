@@ -45,6 +45,7 @@ export interface Book {
   borrowedBy?: string; // User ID
   borrowDate?: string; // ISO Date string
   dueDate?: string; // ISO Date string
+  reservedBy?: string; // User ID of the person who reserved it
   reviews: Review[];
   rating: number; // Average rating
 }
@@ -87,7 +88,7 @@ export interface LibraryMessage {
 }
 
 export const TIER_RULES = {
-  Standard: { maxBooks: 2, loanDays: 14, cost: 0, color: 'gray' },
-  Premium: { maxBooks: 5, loanDays: 30, cost: 20, color: 'purple' },
-  Scholar: { maxBooks: 10, loanDays: 60, cost: 50, color: 'amber' }
+  Standard: { maxBooks: 2, loanDays: 14, cost: 0, color: 'gray', maxReservations: 0 },
+  Premium: { maxBooks: 5, loanDays: 30, cost: 20, color: 'purple', maxReservations: 3 },
+  Scholar: { maxBooks: 10, loanDays: 60, cost: 50, color: 'amber', maxReservations: 5 }
 };

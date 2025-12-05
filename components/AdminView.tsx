@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Users, BookOpen, CheckCircle, XCircle, Trash2, Plus, Crown, TrendingUp, Edit, Save, X, RotateCcw } from 'lucide-react';
-import { User, Category, Book, ThemeColor, TIER_RULES, Role } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Users, BookOpen, CheckCircle, XCircle, Trash2, Plus, Crown, TrendingUp, Edit, Save, X, RotateCcw, Bookmark, CreditCard, Clock, Activity, BarChart as ChartIcon, AlertCircle } from 'lucide-react';
+import { User, Category, Book, ThemeColor, TIER_RULES, Role, BorrowHistory } from '../types';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
 interface AdminViewProps {
   users: User[];
@@ -11,14 +11,18 @@ interface AdminViewProps {
   handleApproveCategory: (id: string) => void;
   books: Book[];
   themeColor: ThemeColor;
+  borrowHistory?: BorrowHistory[];
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categories, handleApproveCategory, books, themeColor }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categories, handleApproveCategory, books, themeColor, borrowHistory = [] }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'approvals'>('analytics');
   
   // User Form State
   const [formData, setFormData] = useState({ username: '', name: '', role: 'student' as Role });
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // User Detail Modal State
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const pendingCategories = categories.filter(c => c.status === 'pending');
 
@@ -39,6 +43,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
 
   // Revenue Calculation (Mock based on users tier)
   const totalRevenue = users.reduce((acc, user) => acc + TIER_RULES[user.tier].cost, 0);
+  
+  // Reservation Stats
+  const activeReservations = books.filter(b => b.reservedBy).length;
 
   const handleSubmitUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,10 +78,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
     setFormData({ username: '', name: '', role: 'student' });
   };
 
-  const handleEditClick = (user: User) => {
+  const handleEditClick = (e: React.MouseEvent, user: User) => {
+    e.stopPropagation(); // Prevent opening detail modal
     setFormData({ username: user.username, name: user.name, role: user.role });
     setEditingId(user.id);
-    // Smooth scroll to form
     const formElement = document.getElementById('user-form');
     if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
   };
@@ -84,15 +91,162 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
     setEditingId(null);
   };
 
-  const handleDeleteUser = (id: string) => {
+  const handleDeleteUser = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Prevent opening detail modal
     if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       setUsers(users.filter(u => u.id !== id));
       if (editingId === id) handleCancelEdit();
     }
   };
+  
+  const getUserBorrowingStats = (userId: string) => {
+     // Mocking some data points for the chart based on actual history count
+     const userHistoryCount = borrowHistory.filter(h => h.userId === userId).length;
+     return [
+       { name: 'Jan', books: Math.floor(userHistoryCount * 0.1) },
+       { name: 'Feb', books: Math.floor(userHistoryCount * 0.2) },
+       { name: 'Mar', books: Math.floor(userHistoryCount * 0.4) },
+       { name: 'Apr', books: Math.floor(userHistoryCount * 0.1) },
+       { name: 'May', books: Math.floor(userHistoryCount * 0.2) },
+     ];
+  };
 
   return (
     <div className="space-y-6">
+      {/* User Details Modal */}
+      <AnimatePresence>
+        {selectedUser && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.95, rotateX: 10 }}
+               animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+               exit={{ opacity: 0, scale: 0.95, rotateX: 10 }}
+               className="bg-white dark:bg-gray-800 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh] border border-gray-100 dark:border-gray-700"
+             >
+                {/* Left Panel: Digital ID Card */}
+                <div className="w-full md:w-1/3 bg-gray-50 dark:bg-gray-900 p-8 flex flex-col items-center justify-center border-r border-gray-200 dark:border-gray-700 relative overflow-hidden">
+                   {/* Decorative Gradients */}
+                   <div className={`absolute top-0 right-0 w-64 h-64 bg-${themeColor}-500/10 rounded-full blur-3xl -mr-20 -mt-20`} />
+                   <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl -ml-20 -mb-20" />
+                   
+                   <div className="relative z-10 w-full">
+                      <div className="aspect-[3/4.5] rounded-2xl bg-gradient-to-br from-white/40 to-white/10 dark:from-white/5 dark:to-white/5 backdrop-blur-md border border-white/20 shadow-2xl p-6 flex flex-col items-center text-center relative overflow-hidden group">
+                        {/* Shimmer Effect */}
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 pointer-events-none z-10 transition-opacity duration-500">
+                          <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
+                        </div>
+
+                        <div className="absolute top-4 right-4">
+                           <Crown size={24} className={`text-${TIER_RULES[selectedUser.tier].color}-500 drop-shadow-sm`} />
+                        </div>
+                        
+                        <div className="w-24 h-24 rounded-full bg-white p-1 shadow-lg mb-4 mt-8">
+                           <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedUser.avatarSeed}`} className="w-full h-full rounded-full" />
+                        </div>
+                        
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-1 font-serif">{selectedUser.name}</h2>
+                        <p className="text-sm text-gray-500 mb-6 font-mono bg-white/50 dark:bg-black/30 px-2 py-0.5 rounded">ID: {selectedUser.id}</p>
+                        
+                        <div className="w-full space-y-3 mt-auto">
+                           <div className="flex justify-between items-center text-sm p-2 bg-white/60 dark:bg-black/20 rounded-lg">
+                             <span className="text-gray-500 dark:text-gray-400">Role</span>
+                             <span className="font-bold capitalize">{selectedUser.role}</span>
+                           </div>
+                           <div className="flex justify-between items-center text-sm p-2 bg-white/60 dark:bg-black/20 rounded-lg">
+                             <span className="text-gray-500 dark:text-gray-400">Status</span>
+                             <span className="font-bold text-green-600 flex items-center gap-1"><CheckCircle size={12}/> Active</span>
+                           </div>
+                        </div>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Right Panel: Detailed Stats */}
+                <div className="flex-1 p-8 overflow-y-auto">
+                   <div className="flex justify-between items-center mb-6">
+                     <h3 className="text-2xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                       <Activity className={`text-${themeColor}-500`} /> User Analytics
+                     </h3>
+                     <button onClick={() => setSelectedUser(null)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
+                       <X size={24} className="text-gray-500" />
+                     </button>
+                   </div>
+                   
+                   <div className="grid grid-cols-3 gap-4 mb-8">
+                     <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/30">
+                        <div className="flex items-center gap-2 text-green-600 mb-1">
+                          <CreditCard size={18} />
+                          <span className="text-xs font-bold uppercase">Wallet</span>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-800 dark:text-white">${selectedUser.walletBalance.toFixed(2)}</p>
+                     </div>
+                     <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30">
+                        <div className="flex items-center gap-2 text-red-600 mb-1">
+                          <AlertCircle size={18} />
+                          <span className="text-xs font-bold uppercase">Fines</span>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-800 dark:text-white">${selectedUser.fines.toFixed(2)}</p>
+                     </div>
+                     <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                        <div className="flex items-center gap-2 text-blue-600 mb-1">
+                          <BookOpen size={18} />
+                          <span className="text-xs font-bold uppercase">Read</span>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-800 dark:text-white">
+                          {borrowHistory.filter(h => h.userId === selectedUser.id).length}
+                        </p>
+                     </div>
+                   </div>
+
+                   <div className="mb-6">
+                     <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                       <ChartIcon size={18} /> Activity Trends
+                     </h4>
+                     <div className="h-48 w-full bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 p-2">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={getUserBorrowingStats(selectedUser.id)}>
+                            <defs>
+                              <linearGradient id="colorBooks" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={`var(--color-${themeColor}-500, #6366f1)`} stopOpacity={0.3}/>
+                                <stop offset="95%" stopColor={`var(--color-${themeColor}-500, #6366f1)`} stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
+                            <Tooltip contentStyle={{ borderRadius: '8px', border: 'none' }} />
+                            <Area type="monotone" dataKey="books" stroke={`var(--color-${themeColor}-500, #6366f1)`} fillOpacity={1} fill="url(#colorBooks)" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                     </div>
+                   </div>
+
+                   <div>
+                     <h4 className="font-bold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                       <Clock size={18} /> Recent History
+                     </h4>
+                     <div className="space-y-3">
+                       {borrowHistory.filter(h => h.userId === selectedUser.id).slice(0, 3).map(record => (
+                         <div key={record.id} className="flex items-center gap-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
+                            <div className="w-10 h-14 rounded bg-gray-200 overflow-hidden flex-shrink-0">
+                               <img src={record.bookCoverUrl} className="w-full h-full object-cover" />
+                            </div>
+                            <div>
+                               <p className="font-bold text-sm text-gray-800 dark:text-white line-clamp-1">{record.bookTitle}</p>
+                               <p className="text-xs text-gray-500">Returned: {new Date(record.returnDate).toLocaleDateString()}</p>
+                            </div>
+                         </div>
+                       ))}
+                       {borrowHistory.filter(h => h.userId === selectedUser.id).length === 0 && (
+                         <p className="text-gray-400 text-sm italic">No reading history available.</p>
+                       )}
+                     </div>
+                   </div>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Hero Section */}
       <div className="relative h-48 rounded-3xl overflow-hidden shadow-lg">
         <img 
@@ -142,6 +296,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                    <TrendingUp size={24} className="opacity-50" />
                  </h3>
                  <p className="text-sm opacity-60 mt-2">Simulated revenue from all user tiers</p>
+               </div>
+               
+               <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-4">
+                 <div className="p-4 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-full">
+                   <Bookmark size={24} />
+                 </div>
+                 <div>
+                   <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Active Reservations</p>
+                   <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{activeReservations}</h3>
+                 </div>
                </div>
             </div>
 
@@ -266,7 +430,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {users.map(user => (
-                    <tr key={user.id} className={`transition-colors ${editingId === user.id ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/10` : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                    <tr 
+                      key={user.id} 
+                      onClick={() => setSelectedUser(user)}
+                      className={`transition-colors cursor-pointer ${editingId === user.id ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/10` : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+                    >
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
                            {user.name}
@@ -301,7 +469,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
                           <button 
-                            onClick={() => handleEditClick(user)} 
+                            onClick={(e) => handleEditClick(e, user)} 
                             className={`p-2 rounded-lg transition-colors ${
                               editingId === user.id 
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/30' 
@@ -312,7 +480,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                             <Edit size={18} />
                           </button>
                           <button 
-                            onClick={() => handleDeleteUser(user.id)} 
+                            onClick={(e) => handleDeleteUser(e, user.id)} 
                             className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
                             title="Delete User"
                           >

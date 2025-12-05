@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Book as BookIcon, Layers, AlertCircle, Calendar as CalendarIcon, RotateCcw, MessageSquare, Send, Users, Search, Crown, X, Upload, Image as ImageIcon } from 'lucide-react';
-import { Category, Book, User, ThemeColor, LibraryMessage, TIER_RULES } from '../types';
+import { Plus, Book as BookIcon, Layers, AlertCircle, Calendar as CalendarIcon, RotateCcw, MessageSquare, Send, Users, Search, Crown, X, Upload, Image as ImageIcon, Bookmark, Star, ChevronRight } from 'lucide-react';
+import { Category, Book, User, ThemeColor, LibraryMessage, TIER_RULES, BorrowHistory } from '../types';
+import { BookDetailsModal } from './BookDetailsModal';
 
 interface LibrarianViewProps {
   categories: Category[];
@@ -14,16 +15,22 @@ interface LibrarianViewProps {
   messages: LibraryMessage[];
   sendMessage: (text: string) => void;
   users: User[];
+  borrowHistory: BorrowHistory[];
+  onUpdateBook?: (book: Book) => void;
+  onDeleteBook?: (bookId: string) => void;
 }
 
 export const LibrarianView: React.FC<LibrarianViewProps> = ({ 
-  categories, books, addCategory, addBook, currentUser, themeColor, handleReturnBook, messages, sendMessage, users 
+  categories, books, addCategory, addBook, currentUser, themeColor, handleReturnBook, messages, sendMessage, users, borrowHistory, onUpdateBook, onDeleteBook
 }) => {
   const [activeTab, setActiveTab] = useState<'books' | 'categories' | 'calendar' | 'messages' | 'users'>('books');
   const [newCategory, setNewCategory] = useState('');
   
-  // Detailed Add Book Form State
+  // Detailed Add/Edit Book Form State
   const [showAddBookModal, setShowAddBookModal] = useState(false);
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+
   const [newBook, setNewBook] = useState({ 
     title: '', 
     author: '', 
@@ -55,23 +62,63 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
     }
   };
 
-  const handleAddBook = (e: React.FormEvent) => {
+  const handleSaveBook = (e: React.FormEvent) => {
     e.preventDefault();
     if(!newBook.categoryId) {
       alert("Please select a valid category");
       return;
     }
-    const book: Book = {
-      id: Date.now().toString(),
-      ...newBook,
-      isBorrowed: false,
-      rating: 0,
-      reviews: [],
-      coverUrl: newBook.coverUrl || 'https://picsum.photos/300/400'
-    };
-    addBook(book);
+
+    if (editingBookId && onUpdateBook) {
+      // Update Mode
+      const updatedBook: Book = {
+        ...(books.find(b => b.id === editingBookId) as Book),
+        ...newBook
+      };
+      onUpdateBook(updatedBook);
+    } else {
+      // Create Mode
+      const book: Book = {
+        id: Date.now().toString(),
+        ...newBook,
+        isBorrowed: false,
+        rating: 0,
+        reviews: [],
+        coverUrl: newBook.coverUrl || 'https://picsum.photos/300/400'
+      };
+      addBook(book);
+    }
+    
+    // Reset
     setNewBook({ title: '', author: '', categoryId: '', coverUrl: '', description: '' });
     setShowAddBookModal(false);
+    setEditingBookId(null);
+  };
+
+  const openEditModal = (book: Book) => {
+    setNewBook({
+      title: book.title,
+      author: book.author,
+      categoryId: book.categoryId,
+      coverUrl: book.coverUrl,
+      description: book.description
+    });
+    setEditingBookId(book.id);
+    setSelectedBook(null); // Close details modal if open
+    setShowAddBookModal(true);
+  };
+
+  const openAddModal = () => {
+    setNewBook({ title: '', author: '', categoryId: '', coverUrl: '', description: '' });
+    setEditingBookId(null);
+    setShowAddBookModal(true);
+  };
+
+  const handleDelete = (bookId: string) => {
+    if(onDeleteBook) {
+      onDeleteBook(bookId);
+      setSelectedBook(null);
+    }
   };
 
   const handleSendMessage = () => {
@@ -87,6 +134,17 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
 
   return (
     <div className="space-y-6">
+      <BookDetailsModal 
+        book={selectedBook} 
+        onClose={() => setSelectedBook(null)} 
+        currentUser={currentUser}
+        themeColor={themeColor}
+        role="librarian"
+        borrowHistory={borrowHistory}
+        onEdit={openEditModal}
+        onDelete={handleDelete}
+      />
+
       {/* Hero */}
       <div className="relative h-48 rounded-3xl overflow-hidden shadow-lg group">
         <img 
@@ -136,7 +194,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
             <div className="flex justify-between items-center">
               <h3 className="text-2xl font-bold text-gray-800 dark:text-white font-serif">Library Collection</h3>
               <button 
-                onClick={() => setShowAddBookModal(true)}
+                onClick={openAddModal}
                 className={`flex items-center gap-2 px-6 py-3 bg-${themeColor}-600 text-white rounded-xl shadow-lg hover:bg-${themeColor}-700 transition-all hover:-translate-y-1`}
               >
                 <Plus size={20} /> Add New Book
@@ -145,27 +203,48 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {books.map(book => (
-                <div key={book.id} className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col group hover:shadow-xl transition-all">
-                  <div className="relative aspect-[2/3] mb-4 overflow-hidden rounded-xl">
-                    <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                    <div className={`absolute top-2 right-2 px-2 py-1 rounded-md text-xs font-bold ${book.isBorrowed ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-                      {book.isBorrowed ? 'Out' : 'In'}
+                <motion.div
+                    key={book.id}
+                    layout
+                    whileHover={{ y: -8 }}
+                    onClick={() => setSelectedBook(book)}
+                    className="group relative bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700 cursor-pointer"
+                  >
+                    {/* Glossy Effect Layer */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 pointer-events-none z-10 transition-opacity duration-500">
+                      <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/10 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out" />
                     </div>
-                  </div>
-                  <h4 className="font-bold text-gray-800 dark:text-white text-lg leading-tight mb-1">{book.title}</h4>
-                  <p className="text-gray-500 text-sm mb-4">{book.author}</p>
-                  
-                  <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                    <span className="text-xs text-gray-400">ID: {book.id}</span>
-                    <button className="text-gray-400 hover:text-red-500 transition-colors">
-                      Edit
-                    </button>
-                  </div>
-                </div>
+
+                    <div className="h-56 overflow-hidden relative">
+                      <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1" />
+                      <div className={`absolute top-2 right-2 px-2 py-1 rounded-md text-xs font-bold ${book.isBorrowed ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                        {book.isBorrowed ? 'Out' : 'In'}
+                      </div>
+                      {book.reservedBy && (
+                         <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-bold bg-purple-500 text-white flex items-center gap-1 shadow-md">
+                           <Bookmark size={10} fill="currentColor" /> Reserved
+                         </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-60 transition-opacity" />
+                    </div>
+                    
+                    <div className="p-4">
+                      <h4 className="font-bold text-gray-800 dark:text-white text-lg leading-tight mb-1 truncate">{book.title}</h4>
+                      <p className="text-gray-500 text-sm mb-3">{book.author}</p>
+                      
+                      <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <span className="text-xs text-gray-400">ID: {book.id}</span>
+                        <div className="flex text-yellow-400">
+                           <Star size={12} fill="currentColor" />
+                           <span className="text-xs text-gray-500 ml-1">{book.rating.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
               ))}
             </div>
 
-            {/* Rich Add Book Modal */}
+            {/* Rich Add/Edit Book Modal */}
             <AnimatePresence>
               {showAddBookModal && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -200,7 +279,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
                      {/* Right: Form Panel */}
                      <div className="flex-1 p-8 overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
-                          <h3 className="text-2xl font-bold text-gray-800 dark:text-white">Add New Book</h3>
+                          <h3 className="text-2xl font-bold text-gray-800 dark:text-white">{editingBookId ? 'Edit Book' : 'Add New Book'}</h3>
                           <button onClick={() => setShowAddBookModal(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors">
                             <X size={24} className="text-gray-500" />
                           </button>
@@ -215,7 +294,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
                                 </div>
                             </div>
                         ) : (
-                          <form onSubmit={handleAddBook} className="space-y-5">
+                          <form onSubmit={handleSaveBook} className="space-y-5">
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Book Title</label>
@@ -292,7 +371,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
                                  type="submit" 
                                  className={`px-8 py-3 bg-${themeColor}-600 text-white rounded-xl font-bold shadow-lg shadow-${themeColor}-500/30 hover:bg-${themeColor}-700 transition-all transform active:scale-95`}
                                >
-                                 Add to Library
+                                 {editingBookId ? 'Save Changes' : 'Add to Library'}
                                </button>
                             </div>
                           </form>
@@ -305,6 +384,9 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
           </div>
         )}
         
+        {/* Users Tab, Categories Tab, etc. remain unchanged... */}
+        {/* For brevity, repeating the rest of the component which is largely unchanged except for prop passing if needed. 
+            However, user asked for full file content. I will include the rest. */}
         {activeTab === 'users' && (
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -463,6 +545,9 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
                           <h4 className="font-medium text-sm line-clamp-1">{book.title}</h4>
                           <p className="text-xs text-gray-500">Issued to: Student {book.borrowedBy}</p>
                           <p className="text-xs text-red-500 mt-1">Due: {new Date(book.dueDate!).toLocaleDateString()}</p>
+                           {book.reservedBy && (
+                             <p className="text-[10px] font-bold text-purple-600 mt-1 flex items-center gap-1"><Bookmark size={10} /> Reserved</p>
+                           )}
                         </div>
                       </div>
                       <button 

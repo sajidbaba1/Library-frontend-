@@ -165,6 +165,17 @@ const App: React.FC = () => {
     setBooks([...books, book]);
   };
 
+  const handleUpdateBook = (updatedBook: Book) => {
+    setBooks(prev => prev.map(b => b.id === updatedBook.id ? updatedBook : b));
+    alert(`"${updatedBook.title}" has been updated.`);
+  };
+
+  const handleDeleteBook = (bookId: string) => {
+    if(confirm("Are you sure you want to remove this book from the catalog?")) {
+      setBooks(prev => prev.filter(b => b.id !== bookId));
+    }
+  };
+
   const handleBorrow = (bookId: string) => {
     if (!auth.user) return;
     if (auth.user.fines > 0) {
@@ -196,6 +207,36 @@ const App: React.FC = () => {
       } : b
     ));
     alert(`Book borrowed! Based on your ${auth.user.tier} membership, it is due on ${due.toLocaleDateString()}`);
+  };
+
+  const handleReserveBook = (bookId: string) => {
+    if (!auth.user) return;
+
+    // Check TIER Capability
+    const maxReservations = TIER_RULES[auth.user.tier].maxReservations;
+    if (maxReservations === 0) {
+      alert("Standard members cannot reserve books. Please upgrade to Premium or Scholar to unlock this feature.");
+      return;
+    }
+
+    const currentReservations = books.filter(b => b.reservedBy === auth.user!.id).length;
+    if (currentReservations >= maxReservations) {
+      alert(`You have reached your reservation limit of ${maxReservations} books.`);
+      return;
+    }
+
+    const book = books.find(b => b.id === bookId);
+    if (!book) return;
+
+    if (book.reservedBy) {
+      alert("This book is already reserved by another member.");
+      return;
+    }
+
+    setBooks(prev => prev.map(b => 
+      b.id === bookId ? { ...b, reservedBy: auth.user!.id } : b
+    ));
+    alert("Book Reserved Successfully! You will be notified when it is returned.");
   };
 
   const handleReturnBook = (bookId: string) => {
@@ -238,6 +279,13 @@ const App: React.FC = () => {
         alert(`Book returned overdue! A fine of $${fineAmount} has been applied to the user's account.`);
       }
 
+      // Check Reservation Status
+      let reservedMsg = "";
+      if (book.reservedBy) {
+        const reservingUser = users.find(u => u.id === book.reservedBy);
+        reservedMsg = `\n\n⚠️ ALERT: This book is RESERVED by ${reservingUser?.name || 'a student'}. Please set it aside for pickup.`;
+      }
+
       // Update book state
       setBooks(prev => prev.map(b => 
         b.id === bookId ? { 
@@ -248,6 +296,8 @@ const App: React.FC = () => {
           dueDate: undefined
         } : b
       ));
+
+      if (reservedMsg) alert("Book Returned." + reservedMsg);
     }
   };
 
@@ -668,6 +718,7 @@ const App: React.FC = () => {
                 handleApproveCategory={handleApproveCategory}
                 books={books}
                 themeColor={themeColor}
+                borrowHistory={borrowHistory}
               />
             )}
             {auth.user?.role === 'librarian' && (
@@ -682,6 +733,9 @@ const App: React.FC = () => {
                 messages={libraryMessages}
                 sendMessage={sendMessage}
                 users={users}
+                borrowHistory={borrowHistory}
+                onUpdateBook={handleUpdateBook}
+                onDeleteBook={handleDeleteBook}
               />
             )}
             {auth.user?.role === 'student' && (
@@ -689,6 +743,7 @@ const App: React.FC = () => {
                 books={books} 
                 categories={categories} 
                 handleBorrow={handleBorrow} 
+                handleReserve={handleReserveBook}
                 currentUser={auth.user}
                 themeColor={themeColor}
                 messages={libraryMessages}
