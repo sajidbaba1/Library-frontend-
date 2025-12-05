@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AuthState, User, Role, Category, Book, ThemeColor, FontOption, LibraryMessage } from './types';
+import { AuthState, User, Role, Category, Book, ThemeColor, FontOption, LibraryMessage, BorrowHistory, Review } from './types';
 import { AdminView } from './components/AdminView';
 import { LibrarianView } from './components/LibrarianView';
 import { StudentView } from './components/StudentView';
@@ -17,11 +17,50 @@ const MOCK_USERS: User[] = [
 const INITIAL_CATEGORIES: Category[] = [
   { id: 'c1', name: 'Computer Science', status: 'approved', createdBy: '1' },
   { id: 'c2', name: 'History', status: 'pending', createdBy: '2' },
+  { id: 'c3', name: 'Fiction', status: 'approved', createdBy: '2' },
 ];
 
 const INITIAL_BOOKS: Book[] = [
-  { id: 'b1', title: 'The React Handbook', author: 'Flavio Copes', categoryId: 'c1', coverUrl: 'https://picsum.photos/seed/react/300/400', isBorrowed: false },
-  { id: 'b2', title: 'Clean Code', author: 'Robert C. Martin', categoryId: 'c1', coverUrl: 'https://picsum.photos/seed/clean/300/400', isBorrowed: true, borrowedBy: '3', borrowDate: new Date().toISOString(), dueDate: new Date(Date.now() + 7 * 86400000).toISOString() },
+  { 
+    id: 'b1', 
+    title: 'The React Handbook', 
+    author: 'Flavio Copes', 
+    categoryId: 'c1', 
+    coverUrl: 'https://picsum.photos/seed/react/300/400', 
+    description: "A comprehensive guide to mastering React.js. From hooks to context, this book covers modern React development patterns and best practices for building scalable web applications.",
+    isBorrowed: false,
+    rating: 4.5,
+    reviews: [
+      { id: 'r1', userId: '3', userName: 'Sam Student', rating: 5, comment: 'Excellent resource for beginners!', date: '2023-11-15' }
+    ]
+  },
+  { 
+    id: 'b2', 
+    title: 'Clean Code', 
+    author: 'Robert C. Martin', 
+    categoryId: 'c1', 
+    coverUrl: 'https://picsum.photos/seed/clean/300/400', 
+    description: "Even bad code can function. But if code isn't clean, it can bring a development organization to its knees. This book is a must-read for any developer wanting to become a better software craftsman.",
+    isBorrowed: true, 
+    borrowedBy: '3', 
+    borrowDate: new Date().toISOString(), 
+    dueDate: new Date(Date.now() + 7 * 86400000).toISOString(),
+    rating: 4.8,
+    reviews: []
+  },
+  {
+    id: 'b3',
+    title: 'Dune',
+    author: 'Frank Herbert',
+    categoryId: 'c3',
+    coverUrl: 'https://picsum.photos/seed/dune/300/400',
+    description: "Set on the desert planet Arrakis, Dune is the story of the boy Paul Atreides, heir to a noble family tasked with ruling an inhospitable world where the only thing of value is the 'spice' melange.",
+    isBorrowed: false,
+    rating: 4.9,
+    reviews: [
+       { id: 'r2', userId: '2', userName: 'Larry Librarian', rating: 5, comment: 'A masterpiece of science fiction.', date: '2023-10-10' }
+    ]
+  }
 ];
 
 const AVATAR_SEEDS = ['Felix', 'Aneka', 'Zack', 'Midnight', 'Bear', 'Bella', 'Jack', 'Molly'];
@@ -32,6 +71,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
   const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
   const [books, setBooks] = useState<Book[]>(INITIAL_BOOKS);
+  const [borrowHistory, setBorrowHistory] = useState<BorrowHistory[]>([]);
   const [libraryMessages, setLibraryMessages] = useState<LibraryMessage[]>([]);
   
   // Theme State
@@ -124,15 +164,31 @@ const App: React.FC = () => {
   };
 
   const handleReturnBook = (bookId: string) => {
-    setBooks(prev => prev.map(b => 
-      b.id === bookId ? { 
-        ...b, 
-        isBorrowed: false, 
-        borrowedBy: undefined,
-        borrowDate: undefined,
-        dueDate: undefined
-      } : b
-    ));
+    const book = books.find(b => b.id === bookId);
+    if (book && book.borrowedBy) {
+      // Add to history
+      const record: BorrowHistory = {
+        id: Date.now().toString(),
+        bookId: book.id,
+        bookTitle: book.title,
+        bookCoverUrl: book.coverUrl,
+        userId: book.borrowedBy,
+        borrowDate: book.borrowDate || new Date().toISOString(),
+        returnDate: new Date().toISOString()
+      };
+      setBorrowHistory(prev => [record, ...prev]);
+
+      // Update book state
+      setBooks(prev => prev.map(b => 
+        b.id === bookId ? { 
+          ...b, 
+          isBorrowed: false, 
+          borrowedBy: undefined,
+          borrowDate: undefined,
+          dueDate: undefined
+        } : b
+      ));
+    }
   };
 
   const updateProfile = (name: string, bio: string, avatarSeed: string) => {
@@ -141,6 +197,27 @@ const App: React.FC = () => {
       setAuth({ ...auth, user: updatedUser });
       setUsers(prev => prev.map(u => u.id === auth.user!.id ? updatedUser : u));
     }
+  };
+
+  const handleAddReview = (bookId: string, reviewData: { rating: number; comment: string }) => {
+    if (!auth.user) return;
+    const newReview: Review = {
+      id: Date.now().toString(),
+      userId: auth.user.id,
+      userName: auth.user.name,
+      rating: reviewData.rating,
+      comment: reviewData.comment,
+      date: new Date().toISOString()
+    };
+
+    setBooks(prev => prev.map(b => {
+      if (b.id === bookId) {
+        const updatedReviews = [newReview, ...b.reviews];
+        const avgRating = updatedReviews.reduce((acc, r) => acc + r.rating, 0) / updatedReviews.length;
+        return { ...b, reviews: updatedReviews, rating: avgRating };
+      }
+      return b;
+    }));
   };
 
   const sendMessage = (text: string) => {
@@ -518,6 +595,8 @@ const App: React.FC = () => {
                 themeColor={themeColor}
                 messages={libraryMessages}
                 sendMessage={sendMessage}
+                onAddReview={handleAddReview}
+                borrowHistory={borrowHistory}
               />
             )}
           </div>

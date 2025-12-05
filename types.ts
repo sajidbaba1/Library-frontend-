@@ -20,16 +20,38 @@ export interface Category {
   createdBy: string;
 }
 
+export interface Review {
+  id: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  date: string;
+}
+
 export interface Book {
   id: string;
   title: string;
   author: string;
   categoryId: string;
   coverUrl: string;
+  description: string;
   isBorrowed: boolean;
   borrowedBy?: string; // User ID
   borrowDate?: string; // ISO Date string
   dueDate?: string; // ISO Date string
+  reviews: Review[];
+  rating: number; // Average rating
+}
+
+export interface BorrowHistory {
+  id: string;
+  bookId: string;
+  bookTitle: string;
+  bookCoverUrl: string;
+  userId: string;
+  borrowDate: string;
+  returnDate: string;
 }
 
 export interface AuthState {
