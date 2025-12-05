@@ -1,0 +1,5 @@
+{
+  "name": "LibraMinds - Intelligent Library System",
+  "description": "A comprehensive library management system with role-based access for Admins, Librarians, and Students, featuring AI-powered assistance.",
+  "requestFramePermissions": []
+}
