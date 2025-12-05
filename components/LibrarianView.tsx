@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Book as BookIcon, Layers, AlertCircle, Calendar as CalendarIcon, RotateCcw, MessageSquare, Send, Users, Search, Crown, X, Upload, Image as ImageIcon, Bookmark, Star, ChevronRight } from 'lucide-react';
+import { Plus, Book as BookIcon, Layers, AlertCircle, Calendar as CalendarIcon, RotateCcw, MessageSquare, Send, Users, Search, Crown, X, Upload, Image as ImageIcon, Bookmark, Star, ChevronRight, Check } from 'lucide-react';
 import { Category, Book, User, ThemeColor, LibraryMessage, TIER_RULES, BorrowHistory } from '../types';
 import { BookDetailsModal } from './BookDetailsModal';
 
@@ -12,6 +12,8 @@ interface LibrarianViewProps {
   currentUser: User;
   themeColor: ThemeColor;
   handleReturnBook: (bookId: string) => void;
+  handleApproveRequest: (bookId: string) => void;
+  handleRejectRequest: (bookId: string) => void;
   messages: LibraryMessage[];
   sendMessage: (text: string) => void;
   users: User[];
@@ -21,9 +23,9 @@ interface LibrarianViewProps {
 }
 
 export const LibrarianView: React.FC<LibrarianViewProps> = ({ 
-  categories, books, addCategory, addBook, currentUser, themeColor, handleReturnBook, messages, sendMessage, users, borrowHistory, onUpdateBook, onDeleteBook
+  categories, books, addCategory, addBook, currentUser, themeColor, handleReturnBook, handleApproveRequest, handleRejectRequest, messages, sendMessage, users, borrowHistory, onUpdateBook, onDeleteBook
 }) => {
-  const [activeTab, setActiveTab] = useState<'books' | 'categories' | 'calendar' | 'messages' | 'users'>('books');
+  const [activeTab, setActiveTab] = useState<'books' | 'requests' | 'categories' | 'calendar' | 'messages' | 'users'>('books');
   const [newCategory, setNewCategory] = useState('');
   
   // Detailed Add/Edit Book Form State
@@ -44,6 +46,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
   
   const approvedCategories = categories.filter(c => c.status === 'approved');
   const borrowedBooks = books.filter(b => b.isBorrowed);
+  const pendingRequests = books.filter(b => b.borrowStatus === 'pending');
 
   const getDaysInMonth = () => {
     const now = new Date();
@@ -82,6 +85,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
         id: Date.now().toString(),
         ...newBook,
         isBorrowed: false,
+        borrowStatus: 'available',
         rating: 0,
         reviews: [],
         coverUrl: newBook.coverUrl || 'https://picsum.photos/300/400'
@@ -164,6 +168,7 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
       <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700 pb-2 overflow-x-auto hide-scrollbar">
         {[
           { id: 'books', icon: <BookIcon size={18} />, label: 'Catalog' },
+          { id: 'requests', icon: <AlertCircle size={18} />, label: 'Requests' },
           { id: 'users', icon: <Users size={18} />, label: 'Users' },
           { id: 'categories', icon: <Layers size={18} />, label: 'Categories' },
           { id: 'calendar', icon: <CalendarIcon size={18} />, label: 'Returns' },
@@ -179,6 +184,9 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
             }`}
           >
             {tab.icon} {tab.label}
+            {tab.id === 'requests' && pendingRequests.length > 0 && (
+              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{pendingRequests.length}</span>
+            )}
           </button>
         ))}
       </div>
@@ -217,8 +225,12 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
 
                     <div className="h-56 overflow-hidden relative">
                       <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1" />
-                      <div className={`absolute top-2 right-2 px-2 py-1 rounded-md text-xs font-bold ${book.isBorrowed ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-                        {book.isBorrowed ? 'Out' : 'In'}
+                      <div className={`absolute top-2 right-2 px-2 py-1 rounded-md text-xs font-bold ${
+                        book.borrowStatus === 'borrowed' ? 'bg-orange-100 text-orange-700' : 
+                        book.borrowStatus === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {book.borrowStatus === 'borrowed' ? 'Out' : book.borrowStatus === 'pending' ? 'Pending' : 'In'}
                       </div>
                       {book.reservedBy && (
                          <div className="absolute top-2 left-2 px-2 py-1 rounded-md text-xs font-bold bg-purple-500 text-white flex items-center gap-1 shadow-md">
@@ -383,10 +395,64 @@ export const LibrarianView: React.FC<LibrarianViewProps> = ({
             </AnimatePresence>
           </div>
         )}
+
+        {activeTab === 'requests' && (
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+             <h3 className="text-lg font-semibold mb-6 flex items-center gap-2 text-gray-800 dark:text-white">
+               <AlertCircle size={20} className={`text-${themeColor}-600`} />
+               Pending Borrow Requests
+             </h3>
+             {pendingRequests.length === 0 ? (
+               <div className="text-center py-10 text-gray-400">All caught up! No pending requests.</div>
+             ) : (
+               <div className="space-y-4">
+                 {pendingRequests.map(book => {
+                   const requester = users.find(u => u.id === book.borrowedBy);
+                   return (
+                     <div key={book.id} className="flex flex-col md:flex-row items-center justify-between p-4 border border-gray-100 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-700/30 transition-colors gap-4">
+                       <div className="flex items-center gap-4 w-full md:w-auto">
+                         <div className="w-12 h-16 rounded overflow-hidden shadow-sm">
+                           <img src={book.coverUrl} className="w-full h-full object-cover" />
+                         </div>
+                         <div>
+                           <h4 className="font-bold text-gray-800 dark:text-white text-lg">{book.title}</h4>
+                           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                             <span>Requested by:</span>
+                             {requester ? (
+                               <span className="font-semibold flex items-center gap-1">
+                                 {requester.name} 
+                                 <span className={`text-[10px] px-1.5 rounded-full border border-${TIER_RULES[requester.tier].color}-200 bg-${TIER_RULES[requester.tier].color}-50 text-${TIER_RULES[requester.tier].color}-700 uppercase`}>{requester.tier}</span>
+                               </span>
+                             ) : (
+                               <span className="italic">Unknown User ({book.borrowedBy})</span>
+                             )}
+                           </div>
+                         </div>
+                       </div>
+                       
+                       <div className="flex gap-2 w-full md:w-auto">
+                         <button 
+                            onClick={() => handleRejectRequest(book.id)}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-red-500 px-4 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-sm font-medium"
+                          >
+                           <X size={16} /> Reject
+                         </button>
+                         <button 
+                            onClick={() => handleApproveRequest(book.id)}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium shadow-md shadow-green-500/20"
+                          >
+                           <Check size={16} /> Approve
+                         </button>
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             )}
+          </div>
+        )}
         
-        {/* Users Tab, Categories Tab, etc. remain unchanged... */}
-        {/* For brevity, repeating the rest of the component which is largely unchanged except for prop passing if needed. 
-            However, user asked for full file content. I will include the rest. */}
+        {/* ... (Other Tabs remain largely the same) ... */}
         {activeTab === 'users' && (
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">

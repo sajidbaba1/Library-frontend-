@@ -42,6 +42,7 @@ export interface Book {
   coverUrl: string;
   description: string;
   isBorrowed: boolean;
+  borrowStatus: 'available' | 'pending' | 'borrowed'; // New field for workflow
   borrowedBy?: string; // User ID
   borrowDate?: string; // ISO Date string
   dueDate?: string; // ISO Date string
@@ -85,6 +86,16 @@ export interface LibraryMessage {
   text: string;
   timestamp: number;
   isFromLibrarian: boolean;
+}
+
+export interface Notification {
+  id: number;
+  title: string;
+  text: string;
+  read: boolean;
+  recipientId: string | 'all' | 'role:librarian' | 'role:admin';
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: number;
 }
 
 export const TIER_RULES = {

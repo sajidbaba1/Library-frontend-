@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, BookOpen, MessageCircle, Send, Star, Clock, Wallet, Sparkles, Loader2, X, Mic, Trophy, Award, Medal, ChevronLeft, ChevronRight, Check, Bookmark } from 'lucide-react';
+import { Search, BookOpen, MessageCircle, Send, Star, Clock, Wallet, Sparkles, Loader2, X, Mic, Trophy, Award, Medal, ChevronLeft, ChevronRight, Check, Bookmark, AlertCircle } from 'lucide-react';
 import { Book, Category, User, ThemeColor, LibraryMessage, Review, BorrowHistory, AIRecommendation, MembershipTier, TIER_RULES } from '../types';
 import { BookDetailsModal } from './BookDetailsModal';
 import { WalletPanel } from './WalletPanel';
@@ -327,6 +327,9 @@ export const StudentView: React.FC<StudentViewProps> = ({
                 {filteredBooks.map(book => {
                   const isReservedByMe = book.reservedBy === currentUser.id;
                   const isReservedByOther = book.reservedBy && !isReservedByMe;
+                  const isBorrowedByMe = book.borrowedBy === currentUser.id;
+                  const isPendingByMe = book.borrowStatus === 'pending' && isBorrowedByMe;
+                  const isAvailable = book.borrowStatus === 'available';
                   
                   return (
                     <motion.div
@@ -364,20 +367,26 @@ export const StudentView: React.FC<StudentViewProps> = ({
                       <div className="p-5">
                         <div className="flex justify-between items-center mb-4">
                           <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">by {book.author}</p>
-                          <span className={`w-2 h-2 rounded-full ${book.isBorrowed ? (isReservedByMe ? 'bg-purple-400' : 'bg-orange-400') : 'bg-green-400'}`} />
+                          <span className={`w-2 h-2 rounded-full ${book.borrowStatus === 'borrowed' ? 'bg-orange-400' : book.borrowStatus === 'pending' ? 'bg-yellow-400' : 'bg-green-400'}`} />
                         </div>
 
-                        {book.isBorrowed ? (
+                        {!isAvailable ? (
                           <div className="flex gap-2">
                              <button
                                 onClick={(e) => e.stopPropagation()}
                                 disabled={true}
-                                className="flex-1 py-3 rounded-xl font-bold text-sm bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed"
+                                className={`flex-1 py-3 rounded-xl font-bold text-sm cursor-not-allowed flex items-center justify-center gap-2 ${
+                                  isBorrowedByMe && book.isBorrowed ? 'bg-green-100 text-green-700' : 
+                                  isPendingByMe ? 'bg-yellow-100 text-yellow-700' : 
+                                  'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'
+                                }`}
                               >
-                                {book.borrowedBy === currentUser.id ? 'Borrowed' : 'Unavailable'}
+                                {isBorrowedByMe && book.isBorrowed ? 'Borrowed' : 
+                                 isPendingByMe ? <><Clock size={16}/> Pending Approval</> : 
+                                 'Unavailable'}
                               </button>
                               
-                              {!book.borrowedBy || book.borrowedBy !== currentUser.id ? (
+                              {!isBorrowedByMe ? (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -407,7 +416,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
                             }}
                             className={`w-full py-3 rounded-xl font-bold text-sm transition-all transform active:scale-95 bg-${themeColor}-600 text-white shadow-lg shadow-${themeColor}-500/30 hover:shadow-${themeColor}-500/50 hover:bg-${themeColor}-700`}
                           >
-                            Borrow Now
+                            Request Borrow
                           </button>
                         )}
                       </div>
@@ -430,6 +439,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
         {/* Other Tabs (History, Wallet, Chat) remain using their existing components but wrapped in the layout */}
         {activeTab === 'history' && (
           <div className="space-y-8 animate-fadeIn">
+            {/* ... Badge and History logic same as before ... */}
             <div className={`bg-gradient-to-br from-${themeColor}-600 to-${themeColor}-800 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden`}>
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
               <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -519,6 +529,7 @@ export const StudentView: React.FC<StudentViewProps> = ({
           </div>
         )}
 
+        {/* ... (Wallet and Chat Tabs unchanged) ... */}
         {activeTab === 'wallet' && (
           <div className="space-y-6">
              <h3 className="text-3xl font-bold font-serif flex items-center gap-3 text-gray-800 dark:text-white">
