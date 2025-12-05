@@ -4,14 +4,15 @@ import { AdminView } from './components/AdminView';
 import { LibrarianView } from './components/LibrarianView';
 import { StudentView } from './components/StudentView';
 import { Chatbot } from './components/Chatbot';
+import { Auth } from './components/Auth';
 import { LogOut, Library, Sun, Moon, Palette, Bell, Settings, User as UserIcon, X, Check, Type } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- MOCK DATA ---
 const MOCK_USERS: User[] = [
-  { id: '1', username: 'admin', name: 'Alice Admin', role: 'admin', avatarSeed: 'Alice' },
-  { id: '2', username: 'lib', name: 'Larry Librarian', role: 'librarian', avatarSeed: 'Larry' },
-  { id: '3', username: 'student', name: 'Sam Student', role: 'student', avatarSeed: 'Sam' },
+  { id: '1', username: 'admin', name: 'Alice Admin', role: 'admin', avatarSeed: 'Alice', walletBalance: 100.00, fines: 0 },
+  { id: '2', username: 'lib', name: 'Larry Librarian', role: 'librarian', avatarSeed: 'Larry', walletBalance: 50.00, fines: 0 },
+  { id: '3', username: 'student', name: 'Sam Student', role: 'student', avatarSeed: 'Sam', walletBalance: 15.00, fines: 5.00 },
 ];
 
 const INITIAL_CATEGORIES: Category[] = [
@@ -43,8 +44,8 @@ const INITIAL_BOOKS: Book[] = [
     description: "Even bad code can function. But if code isn't clean, it can bring a development organization to its knees. This book is a must-read for any developer wanting to become a better software craftsman.",
     isBorrowed: true, 
     borrowedBy: '3', 
-    borrowDate: new Date().toISOString(), 
-    dueDate: new Date(Date.now() + 7 * 86400000).toISOString(),
+    borrowDate: new Date(Date.now() - 15 * 86400000).toISOString(), // Borrowed 15 days ago
+    dueDate: new Date(Date.now() - 1 * 86400000).toISOString(), // Due yesterday (Overdue)
     rating: 4.8,
     reviews: []
   },
@@ -110,16 +111,34 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
   const login = (role: Role) => {
-    const user = MOCK_USERS.find(u => u.role === role);
+    const user = users.find(u => u.role === role);
     if (user) {
-      const fakeToken = `jwt-${user.id}-${Date.now()}`;
-      setAuth({ isAuthenticated: true, user, token: fakeToken });
-      localStorage.setItem('authToken', fakeToken);
-      if (role === 'admin') setThemeColor('indigo');
-      if (role === 'librarian') setThemeColor('teal');
-      if (role === 'student') setThemeColor('orange');
+      authenticateUser(user);
     }
   };
+
+  const register = (name: string, username: string, role: Role) => {
+    const newUser: User = {
+      id: Date.now().toString(),
+      name,
+      username,
+      role,
+      avatarSeed: name,
+      walletBalance: 0,
+      fines: 0
+    };
+    setUsers([...users, newUser]);
+    authenticateUser(newUser);
+  };
+
+  const authenticateUser = (user: User) => {
+    const fakeToken = `jwt-${user.id}-${Date.now()}`;
+    setAuth({ isAuthenticated: true, user, token: fakeToken });
+    localStorage.setItem('authToken', fakeToken);
+    if (user.role === 'admin') setThemeColor('indigo');
+    if (user.role === 'librarian') setThemeColor('teal');
+    if (user.role === 'student') setThemeColor('orange');
+  }
   
   const handleLogout = () => {
     setAuth({ isAuthenticated: false, user: null, token: null });
@@ -147,6 +166,11 @@ const App: React.FC = () => {
 
   const handleBorrow = (bookId: string) => {
     if (!auth.user) return;
+    if (auth.user.fines > 0) {
+      alert("You have outstanding fines. Please pay them before borrowing new books.");
+      return;
+    }
+
     const now = new Date();
     const due = new Date();
     due.setDate(now.getDate() + 14); // 2 weeks loan
@@ -166,6 +190,19 @@ const App: React.FC = () => {
   const handleReturnBook = (bookId: string) => {
     const book = books.find(b => b.id === bookId);
     if (book && book.borrowedBy) {
+      const now = new Date();
+      let fineAmount = 0;
+      
+      // Calculate Fine
+      if (book.dueDate) {
+        const dueDate = new Date(book.dueDate);
+        if (now > dueDate) {
+          const diffTime = Math.abs(now.getTime() - dueDate.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+          fineAmount = diffDays * 5; // $5 per day overdue
+        }
+      }
+
       // Add to history
       const record: BorrowHistory = {
         id: Date.now().toString(),
@@ -178,6 +215,18 @@ const App: React.FC = () => {
       };
       setBorrowHistory(prev => [record, ...prev]);
 
+      // Apply Fine to User
+      if (fineAmount > 0) {
+        setUsers(prev => prev.map(u => u.id === book.borrowedBy ? { ...u, fines: u.fines + fineAmount } : u));
+        
+        // Update local auth user if it's the current user (though usually librarian returns)
+        if (auth.user?.id === book.borrowedBy) {
+          setAuth(prev => prev.user ? ({ ...prev, user: { ...prev.user, fines: prev.user.fines + fineAmount } }) : prev);
+        }
+        
+        alert(`Book returned overdue! A fine of $${fineAmount} has been applied to the user's account.`);
+      }
+
       // Update book state
       setBooks(prev => prev.map(b => 
         b.id === bookId ? { 
@@ -188,6 +237,26 @@ const App: React.FC = () => {
           dueDate: undefined
         } : b
       ));
+    }
+  };
+
+  const handleAddFunds = (amount: number) => {
+    if(!auth.user) return;
+    const updatedUser = { ...auth.user, walletBalance: auth.user.walletBalance + amount };
+    setAuth({ ...auth, user: updatedUser });
+    setUsers(prev => prev.map(u => u.id === auth.user!.id ? updatedUser : u));
+  };
+
+  const handlePayFine = (amount: number) => {
+    if(!auth.user) return;
+    if(auth.user.walletBalance >= amount) {
+      const updatedUser = { 
+        ...auth.user, 
+        walletBalance: auth.user.walletBalance - amount,
+        fines: Math.max(0, auth.user.fines - amount)
+      };
+      setAuth({ ...auth, user: updatedUser });
+      setUsers(prev => prev.map(u => u.id === auth.user!.id ? updatedUser : u));
     }
   };
 
@@ -258,34 +327,12 @@ const App: React.FC = () => {
   // --- LOGIN SCREEN ---
   if (!auth.isAuthenticated) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-indigo-500 to-purple-600'}`}>
-         <button 
-          onClick={() => setIsDarkMode(!isDarkMode)} 
-          className="absolute top-6 right-6 p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/30 transition-colors"
-        >
-          {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
-
-        <div className={`p-8 rounded-3xl shadow-2xl w-full max-w-md text-center transition-colors duration-300 ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'}`}>
-          <div className={`mb-6 flex justify-center ${isDarkMode ? 'text-indigo-400' : 'text-indigo-600'}`}>
-            <Library size={64} />
-          </div>
-          <h1 className="text-3xl font-bold mb-2 font-serif">LibraMinds</h1>
-          <p className={`mb-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Select a role to simulate login (Demo)</p>
-          
-          <div className="space-y-3">
-            <button onClick={() => login('student')} className="w-full py-3 px-4 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-medium shadow-lg shadow-orange-500/30">
-              Continue as Student
-            </button>
-            <button onClick={() => login('librarian')} className="w-full py-3 px-4 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-medium shadow-lg shadow-teal-500/30">
-              Continue as Librarian
-            </button>
-            <button onClick={() => login('admin')} className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium shadow-lg shadow-indigo-600/30">
-              Continue as Admin
-            </button>
-          </div>
-        </div>
-      </div>
+      <Auth 
+        onLogin={login} 
+        onRegister={register} 
+        isDarkMode={isDarkMode} 
+        toggleDarkMode={() => setIsDarkMode(!isDarkMode)} 
+      />
     );
   }
 
@@ -399,10 +446,14 @@ const App: React.FC = () => {
                 <p className="text-xs text-gray-400 uppercase font-bold">Current User</p>
                 <div className="flex items-center gap-2 mt-1">
                   <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${auth.user?.avatarSeed}`} alt="avatar" className="w-8 h-8 rounded-full bg-white" />
-                  <div>
-                    <p className="font-medium text-sm leading-tight">{auth.user?.name}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm leading-tight truncate">{auth.user?.name}</p>
                     <p className={`text-xs capitalize text-${themeColor}-500`}>{auth.user?.role}</p>
                   </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 flex justify-between text-xs">
+                   <span>Wallet:</span>
+                   <span className="font-bold text-green-500">${auth.user?.walletBalance.toFixed(2)}</span>
                 </div>
              </div>
         </div>
@@ -426,6 +477,11 @@ const App: React.FC = () => {
            </h2>
 
            <div className="flex items-center gap-4">
+              {/* Wallet Indicator (Header) */}
+              <div className="px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-medium border border-green-200 dark:border-green-800">
+                ${auth.user?.walletBalance.toFixed(2)}
+              </div>
+
               {/* Appearance Menu */}
               <div className="relative">
                 <button 
@@ -597,6 +653,8 @@ const App: React.FC = () => {
                 sendMessage={sendMessage}
                 onAddReview={handleAddReview}
                 borrowHistory={borrowHistory}
+                onAddFunds={handleAddFunds}
+                onPayFine={handlePayFine}
               />
             )}
           </div>

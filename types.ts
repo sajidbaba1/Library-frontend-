@@ -11,6 +11,8 @@ export interface User {
   name: string;
   avatarSeed?: string;
   bio?: string;
+  walletBalance: number;
+  fines: number;
 }
 
 export interface Category {

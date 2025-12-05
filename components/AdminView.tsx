@@ -41,7 +41,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
       id: Date.now().toString(),
       username: newUser.username,
       name: newUser.name,
-      role: newUser.role
+      role: newUser.role,
+      walletBalance: 0,
+      fines: 0
     };
     setUsers([...users, user]);
     setNewUser({ username: '', name: '', role: 'student' });
@@ -185,6 +187,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                     <th className="px-6 py-4">Name</th>
                     <th className="px-6 py-4">Username</th>
                     <th className="px-6 py-4">Role</th>
+                    <th className="px-6 py-4">Wallet</th>
+                    <th className="px-6 py-4">Fines</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -201,6 +205,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                         }`}>
                           {user.role}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-green-600 font-medium">${user.walletBalance.toFixed(2)}</td>
+                      <td className="px-6 py-4">
+                         <span className={`${user.fines > 0 ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                           ${user.fines.toFixed(2)}
+                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button onClick={() => handleDeleteUser(user.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors">

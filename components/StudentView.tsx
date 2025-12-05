@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, BookOpen, MessageCircle, Send, Star, Clock } from 'lucide-react';
+import { Search, BookOpen, MessageCircle, Send, Star, Clock, Wallet } from 'lucide-react';
 import { Book, Category, User, ThemeColor, LibraryMessage, Review, BorrowHistory } from '../types';
 import { BookDetailsModal } from './BookDetailsModal';
+import { WalletPanel } from './WalletPanel';
 
 interface StudentViewProps {
   books: Book[];
@@ -14,12 +15,14 @@ interface StudentViewProps {
   sendMessage: (text: string) => void;
   onAddReview: (bookId: string, review: Omit<Review, 'id' | 'userId' | 'userName' | 'date'>) => void;
   borrowHistory: BorrowHistory[];
+  onAddFunds: (amount: number) => void;
+  onPayFine: (amount: number) => void;
 }
 
 export const StudentView: React.FC<StudentViewProps> = ({ 
-  books, categories, handleBorrow, currentUser, themeColor, messages, sendMessage, onAddReview, borrowHistory 
+  books, categories, handleBorrow, currentUser, themeColor, messages, sendMessage, onAddReview, borrowHistory, onAddFunds, onPayFine 
 }) => {
-  const [activeTab, setActiveTab] = useState<'browse' | 'chat' | 'history'>('browse');
+  const [activeTab, setActiveTab] = useState<'browse' | 'chat' | 'history' | 'wallet'>('browse');
   const [filter, setFilter] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [chatInput, setChatInput] = useState('');
@@ -78,6 +81,12 @@ export const StudentView: React.FC<StudentViewProps> = ({
           className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'history' ? `bg-${themeColor}-600 text-white shadow-md shadow-${themeColor}-500/30` : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
         >
           <Clock size={18} /> History
+        </button>
+        <button
+          onClick={() => setActiveTab('wallet')}
+          className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap ${activeTab === 'wallet' ? `bg-${themeColor}-600 text-white shadow-md shadow-${themeColor}-500/30` : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+        >
+          <Wallet size={18} /> Wallet & Fines
         </button>
         <button
           onClick={() => setActiveTab('chat')}
@@ -217,6 +226,20 @@ export const StudentView: React.FC<StudentViewProps> = ({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'wallet' && (
+          <div className="space-y-6">
+             <h3 className="text-xl font-bold font-serif flex items-center gap-2">
+              <Wallet className={`text-${themeColor}-500`} /> Financial Center
+            </h3>
+            <WalletPanel 
+              user={currentUser} 
+              themeColor={themeColor} 
+              onAddFunds={onAddFunds} 
+              onPayFine={onPayFine} 
+            />
           </div>
         )}
 
