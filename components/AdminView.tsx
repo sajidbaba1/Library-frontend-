@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, BookOpen, CheckCircle, XCircle, Trash2, Plus } from 'lucide-react';
-import { User, Category, Book, ThemeColor } from '../types';
+import { Users, BookOpen, CheckCircle, XCircle, Trash2, Plus, Crown, TrendingUp } from 'lucide-react';
+import { User, Category, Book, ThemeColor, TIER_RULES } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface AdminViewProps {
@@ -34,6 +34,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
     books: books.filter(b => b.categoryId === cat.id).length
   })).filter(item => item.books > 0);
 
+  // Revenue Calculation (Mock based on users tier)
+  const totalRevenue = users.reduce((acc, user) => acc + TIER_RULES[user.tier].cost, 0);
+
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.username || !newUser.name) return;
@@ -43,7 +46,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
       name: newUser.name,
       role: newUser.role,
       walletBalance: 0,
-      fines: 0
+      fines: 0,
+      tier: 'Standard'
     };
     setUsers([...users, user]);
     setNewUser({ username: '', name: '', role: 'student' });
@@ -96,45 +100,59 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
         transition={{ duration: 0.3 }}
       >
         {activeTab === 'analytics' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
-              <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">User Distribution</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={roleData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {roleData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderRadius: '8px', border: 'none', color: '#fff' }} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+          <div className="space-y-6">
+            {/* Revenue Metric */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+               <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg">
+                 <p className="opacity-80 font-medium mb-1">Total Membership Revenue</p>
+                 <h3 className="text-3xl font-bold flex items-center gap-2">
+                   ${totalRevenue.toFixed(2)}
+                   <TrendingUp size={24} className="opacity-50" />
+                 </h3>
+                 <p className="text-sm opacity-60 mt-2">Simulated revenue from all user tiers</p>
+               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
-              <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Books per Category</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={bookStats}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
-                    <XAxis dataKey="name" stroke="#9ca3af" />
-                    <YAxis stroke="#9ca3af" />
-                    <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: '#1f2937', borderRadius: '8px', border: 'none', color: '#fff' }} />
-                    <Bar dataKey="books" fill={`var(--color-${themeColor}-500, #6366f1)`} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">User Distribution</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={roleData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {roleData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', borderRadius: '8px', border: 'none', color: '#fff' }} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 transition-colors">
+                <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Books per Category</h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={bookStats}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+                      <XAxis dataKey="name" stroke="#9ca3af" />
+                      <YAxis stroke="#9ca3af" />
+                      <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ backgroundColor: '#1f2937', borderRadius: '8px', border: 'none', color: '#fff' }} />
+                      <Bar dataKey="books" fill={`var(--color-${themeColor}-500, #6366f1)`} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
           </div>
@@ -185,8 +203,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 text-sm uppercase">
                   <tr>
                     <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4">Username</th>
                     <th className="px-6 py-4">Role</th>
+                    <th className="px-6 py-4">Tier</th>
                     <th className="px-6 py-4">Wallet</th>
                     <th className="px-6 py-4">Fines</th>
                     <th className="px-6 py-4 text-right">Actions</th>
@@ -195,8 +213,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {users.map(user => (
                     <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-gray-100">{user.name}</td>
-                      <td className="px-6 py-4 text-gray-500 dark:text-gray-400">{user.username}</td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{user.name}</div>
+                        <div className="text-sm text-gray-500">@{user.username}</div>
+                      </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                           user.role === 'admin' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
@@ -205,6 +225,15 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                         }`}>
                           {user.role}
                         </span>
+                      </td>
+                      <td className="px-6 py-4">
+                         {user.role === 'student' ? (
+                           <span className={`flex items-center gap-1 font-bold text-xs text-${TIER_RULES[user.tier].color}-600`}>
+                             <Crown size={12} /> {user.tier}
+                           </span>
+                         ) : (
+                           <span className="text-gray-400 text-xs">-</span>
+                         )}
                       </td>
                       <td className="px-6 py-4 text-green-600 font-medium">${user.walletBalance.toFixed(2)}</td>
                       <td className="px-6 py-4">

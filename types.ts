@@ -4,6 +4,8 @@ export type ThemeColor = 'indigo' | 'blue' | 'teal' | 'emerald' | 'rose' | 'oran
 
 export type FontOption = 'inter' | 'poppins' | 'serif' | 'mono';
 
+export type MembershipTier = 'Standard' | 'Premium' | 'Scholar';
+
 export interface User {
   id: string;
   username: string;
@@ -13,6 +15,7 @@ export interface User {
   bio?: string;
   walletBalance: number;
   fines: number;
+  tier: MembershipTier;
 }
 
 export interface Category {
@@ -82,3 +85,9 @@ export interface LibraryMessage {
   timestamp: number;
   isFromLibrarian: boolean;
 }
+
+export const TIER_RULES = {
+  Standard: { maxBooks: 2, loanDays: 14, cost: 0, color: 'gray' },
+  Premium: { maxBooks: 5, loanDays: 30, cost: 20, color: 'purple' },
+  Scholar: { maxBooks: 10, loanDays: 60, cost: 50, color: 'amber' }
+};

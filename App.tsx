@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { AuthState, User, Role, Category, Book, ThemeColor, FontOption, LibraryMessage, BorrowHistory, Review } from './types';
+import { AuthState, User, Role, Category, Book, ThemeColor, FontOption, LibraryMessage, BorrowHistory, Review, TIER_RULES, MembershipTier } from './types';
 import { AdminView } from './components/AdminView';
 import { LibrarianView } from './components/LibrarianView';
 import { StudentView } from './components/StudentView';
 import { Chatbot } from './components/Chatbot';
 import { Auth } from './components/Auth';
-import { LogOut, Library, Sun, Moon, Palette, Bell, Settings, User as UserIcon, X, Check, Type } from 'lucide-react';
+import { LogOut, Library, Sun, Moon, Palette, Bell, Settings, User as UserIcon, X, Check, Type, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- MOCK DATA ---
 const MOCK_USERS: User[] = [
-  { id: '1', username: 'admin', name: 'Alice Admin', role: 'admin', avatarSeed: 'Alice', walletBalance: 100.00, fines: 0 },
-  { id: '2', username: 'lib', name: 'Larry Librarian', role: 'librarian', avatarSeed: 'Larry', walletBalance: 50.00, fines: 0 },
-  { id: '3', username: 'student', name: 'Sam Student', role: 'student', avatarSeed: 'Sam', walletBalance: 15.00, fines: 5.00 },
+  { id: '1', username: 'admin', name: 'Alice Admin', role: 'admin', avatarSeed: 'Alice', walletBalance: 100.00, fines: 0, tier: 'Standard' },
+  { id: '2', username: 'lib', name: 'Larry Librarian', role: 'librarian', avatarSeed: 'Larry', walletBalance: 50.00, fines: 0, tier: 'Standard' },
+  { id: '3', username: 'student', name: 'Sam Student', role: 'student', avatarSeed: 'Sam', walletBalance: 60.00, fines: 5.00, tier: 'Standard' },
 ];
 
 const INITIAL_CATEGORIES: Category[] = [
@@ -125,7 +125,8 @@ const App: React.FC = () => {
       role,
       avatarSeed: name,
       walletBalance: 0,
-      fines: 0
+      fines: 0,
+      tier: 'Standard'
     };
     setUsers([...users, newUser]);
     authenticateUser(newUser);
@@ -171,9 +172,19 @@ const App: React.FC = () => {
       return;
     }
 
+    // TIER LOGIC: Check Max Books
+    const currentlyBorrowed = books.filter(b => b.borrowedBy === auth.user!.id && b.isBorrowed).length;
+    const tierLimit = TIER_RULES[auth.user.tier].maxBooks;
+
+    if (currentlyBorrowed >= tierLimit) {
+      alert(`You have reached your borrow limit of ${tierLimit} books for the ${auth.user.tier} tier. Upgrade your membership to borrow more!`);
+      return;
+    }
+
     const now = new Date();
     const due = new Date();
-    due.setDate(now.getDate() + 14); // 2 weeks loan
+    // TIER LOGIC: Loan Duration
+    due.setDate(now.getDate() + TIER_RULES[auth.user.tier].loanDays);
 
     setBooks(prev => prev.map(b => 
       b.id === bookId ? { 
@@ -184,7 +195,7 @@ const App: React.FC = () => {
         dueDate: due.toISOString()
       } : b
     ));
-    alert('You have borrowed this book successfully! Due date: ' + due.toLocaleDateString());
+    alert(`Book borrowed! Based on your ${auth.user.tier} membership, it is due on ${due.toLocaleDateString()}`);
   };
 
   const handleReturnBook = (bookId: string) => {
@@ -260,6 +271,24 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpgradeTier = (tier: MembershipTier) => {
+    if (!auth.user) return;
+    const cost = TIER_RULES[tier].cost;
+    
+    if (auth.user.walletBalance >= cost) {
+      const updatedUser: User = { 
+        ...auth.user, 
+        tier: tier,
+        walletBalance: auth.user.walletBalance - cost
+      };
+      setAuth({ ...auth, user: updatedUser });
+      setUsers(prev => prev.map(u => u.id === auth.user!.id ? updatedUser : u));
+      alert(`Successfully upgraded to ${tier} Membership!`);
+    } else {
+      alert("Insufficient funds for this upgrade.");
+    }
+  };
+
   const updateProfile = (name: string, bio: string, avatarSeed: string) => {
     if (auth.user) {
       const updatedUser = { ...auth.user, name, bio, avatarSeed };
@@ -318,6 +347,7 @@ const App: React.FC = () => {
        });
     } else {
        return JSON.stringify({
+        userTier: auth.user?.tier,
         availableBooks: books.filter(b => !b.isBorrowed).map(b => `${b.title} by ${b.author}`),
         categories: categories.filter(c => c.status === 'approved').map(c => c.name)
        });
@@ -449,6 +479,12 @@ const App: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm leading-tight truncate">{auth.user?.name}</p>
                     <p className={`text-xs capitalize text-${themeColor}-500`}>{auth.user?.role}</p>
+                    {auth.user?.role === 'student' && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Crown size={10} className={`text-${TIER_RULES[auth.user.tier].color}-500 fill-current`} />
+                        <p className="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400">{auth.user.tier}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600 flex justify-between text-xs">
@@ -472,8 +508,13 @@ const App: React.FC = () => {
         
         {/* Top Navigation Bar (Desktop) */}
         <header className={`relative z-50 hidden md:flex justify-between items-center px-8 py-4 border-b transition-colors duration-300 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-           <h2 className="text-xl font-semibold capitalize font-serif">
+           <h2 className="text-xl font-semibold capitalize font-serif flex items-center gap-2">
              {auth.user?.role} Dashboard
+             {auth.user?.role === 'student' && (
+               <span className={`text-xs px-2 py-0.5 rounded-full bg-${TIER_RULES[auth.user.tier].color}-100 text-${TIER_RULES[auth.user.tier].color}-700 border border-${TIER_RULES[auth.user.tier].color}-200 flex items-center gap-1`}>
+                 <Crown size={12} /> {auth.user.tier} Member
+               </span>
+             )}
            </h2>
 
            <div className="flex items-center gap-4">
@@ -640,6 +681,7 @@ const App: React.FC = () => {
                 handleReturnBook={handleReturnBook}
                 messages={libraryMessages}
                 sendMessage={sendMessage}
+                users={users}
               />
             )}
             {auth.user?.role === 'student' && (
@@ -655,6 +697,7 @@ const App: React.FC = () => {
                 borrowHistory={borrowHistory}
                 onAddFunds={handleAddFunds}
                 onPayFine={handlePayFine}
+                onUpgradeTier={handleUpgradeTier}
               />
             )}
           </div>
