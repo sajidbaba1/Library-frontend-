@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, BookOpen, CheckCircle, XCircle, Trash2, Plus, Crown, TrendingUp } from 'lucide-react';
-import { User, Category, Book, ThemeColor, TIER_RULES } from '../types';
+import { Users, BookOpen, CheckCircle, XCircle, Trash2, Plus, Crown, TrendingUp, Edit, Save, X, RotateCcw } from 'lucide-react';
+import { User, Category, Book, ThemeColor, TIER_RULES, Role } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface AdminViewProps {
@@ -15,7 +15,10 @@ interface AdminViewProps {
 
 export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categories, handleApproveCategory, books, themeColor }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'users' | 'approvals'>('analytics');
-  const [newUser, setNewUser] = useState({ username: '', name: '', role: 'student' as const });
+  
+  // User Form State
+  const [formData, setFormData] = useState({ username: '', name: '', role: 'student' as Role });
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const pendingCategories = categories.filter(c => c.status === 'pending');
 
@@ -37,25 +40,54 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
   // Revenue Calculation (Mock based on users tier)
   const totalRevenue = users.reduce((acc, user) => acc + TIER_RULES[user.tier].cost, 0);
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleSubmitUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUser.username || !newUser.name) return;
-    const user: User = {
-      id: Date.now().toString(),
-      username: newUser.username,
-      name: newUser.name,
-      role: newUser.role,
-      walletBalance: 0,
-      fines: 0,
-      tier: 'Standard'
-    };
-    setUsers([...users, user]);
-    setNewUser({ username: '', name: '', role: 'student' });
+    if (!formData.username || !formData.name) return;
+
+    if (editingId) {
+      // Update existing user
+      setUsers(users.map(u => 
+        u.id === editingId 
+          ? { ...u, name: formData.name, username: formData.username, role: formData.role } 
+          : u
+      ));
+      alert(`User ${formData.name} updated successfully.`);
+      setEditingId(null);
+    } else {
+      // Create new user
+      const user: User = {
+        id: Date.now().toString(),
+        username: formData.username,
+        name: formData.name,
+        role: formData.role,
+        avatarSeed: formData.name, // Default avatar seed
+        walletBalance: 0,
+        fines: 0,
+        tier: 'Standard'
+      };
+      setUsers([...users, user]);
+      alert(`User ${formData.name} created successfully.`);
+    }
+    setFormData({ username: '', name: '', role: 'student' });
+  };
+
+  const handleEditClick = (user: User) => {
+    setFormData({ username: user.username, name: user.name, role: user.role });
+    setEditingId(user.id);
+    // Smooth scroll to form
+    const formElement = document.getElementById('user-form');
+    if (formElement) formElement.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setFormData({ username: '', name: '', role: 'student' });
+    setEditingId(null);
   };
 
   const handleDeleteUser = (id: string) => {
-    if (confirm('Are you sure you want to delete this user?')) {
+    if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       setUsers(users.filter(u => u.id !== id));
+      if (editingId === id) handleCancelEdit();
     }
   };
 
@@ -160,43 +192,65 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
 
         {activeTab === 'users' && (
           <div className="space-y-6">
-            <form onSubmit={handleAddUser} className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col md:flex-row gap-4 items-end transition-colors">
-               <div className="flex-1 w-full">
-                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                 <input 
-                    required
-                    value={newUser.name}
-                    onChange={e => setNewUser({...newUser, name: e.target.value})}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500" 
-                    placeholder="John Doe" 
-                 />
+            <div id="user-form" className={`bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border-2 ${editingId ? `border-${themeColor}-500` : 'border-gray-100 dark:border-gray-700'} transition-colors`}>
+               <div className="flex justify-between items-center mb-4">
+                 <h3 className={`text-lg font-bold flex items-center gap-2 ${editingId ? `text-${themeColor}-600` : 'text-gray-800 dark:text-white'}`}>
+                   {editingId ? <Edit size={20} /> : <Plus size={20} />} 
+                   {editingId ? 'Edit User Details' : 'Add New User'}
+                 </h3>
+                 {editingId && (
+                   <button onClick={handleCancelEdit} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 flex items-center gap-1 text-sm">
+                     <RotateCcw size={14} /> Cancel
+                   </button>
+                 )}
                </div>
-               <div className="flex-1 w-full">
-                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                 <input 
-                    required
-                    value={newUser.username}
-                    onChange={e => setNewUser({...newUser, username: e.target.value})}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500" 
-                    placeholder="john.doe" 
-                 />
-               </div>
-               <div className="w-full md:w-48">
-                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
-                 <select 
-                    value={newUser.role}
-                    onChange={e => setNewUser({...newUser, role: e.target.value as any})}
-                    className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+               
+               <form onSubmit={handleSubmitUser} className="flex flex-col md:flex-row gap-4 items-end">
+                 <div className="flex-1 w-full">
+                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                   <input 
+                      required
+                      value={formData.name}
+                      onChange={e => setFormData({...formData, name: e.target.value})}
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500" 
+                      placeholder="John Doe" 
+                   />
+                 </div>
+                 <div className="flex-1 w-full">
+                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                   <input 
+                      required
+                      value={formData.username}
+                      onChange={e => setFormData({...formData, username: e.target.value})}
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500" 
+                      placeholder="john.doe" 
+                   />
+                 </div>
+                 <div className="w-full md:w-48">
+                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                   <select 
+                      value={formData.role}
+                      onChange={e => setFormData({...formData, role: e.target.value as Role})}
+                      className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                   >
+                     <option value="student">Student</option>
+                     <option value="librarian">Librarian</option>
+                     <option value="admin">Admin</option>
+                   </select>
+                 </div>
+                 <button 
+                   type="submit" 
+                   className={`w-full md:w-auto px-6 py-2 rounded-lg flex items-center justify-center gap-2 shadow-lg transition-all ${
+                     editingId 
+                       ? `bg-green-600 hover:bg-green-700 text-white shadow-green-500/30` 
+                       : `bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white shadow-${themeColor}-500/30`
+                   }`}
                  >
-                   <option value="student">Student</option>
-                   <option value="librarian">Librarian</option>
-                   <option value="admin">Admin</option>
-                 </select>
-               </div>
-               <button type="submit" className={`w-full md:w-auto bg-${themeColor}-600 text-white px-6 py-2 rounded-lg hover:bg-${themeColor}-700 flex items-center justify-center gap-2 shadow-lg shadow-${themeColor}-500/30`}>
-                 <Plus size={18} /> Add User
-               </button>
-            </form>
+                   {editingId ? <Save size={18} /> : <Plus size={18} />} 
+                   {editingId ? 'Update User' : 'Add User'}
+                 </button>
+               </form>
+            </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden transition-colors">
               <table className="w-full text-left">
@@ -212,9 +266,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {users.map(user => (
-                    <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <tr key={user.id} className={`transition-colors ${editingId === user.id ? `bg-${themeColor}-50 dark:bg-${themeColor}-900/10` : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900 dark:text-gray-100">{user.name}</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                           {user.name}
+                           {editingId === user.id && <span className="text-xs text-green-600 font-bold bg-green-100 px-1.5 py-0.5 rounded-full">Editing</span>}
+                        </div>
                         <div className="text-sm text-gray-500">@{user.username}</div>
                       </td>
                       <td className="px-6 py-4">
@@ -242,9 +299,26 @@ export const AdminView: React.FC<AdminViewProps> = ({ users, setUsers, categorie
                          </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button onClick={() => handleDeleteUser(user.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors">
-                          <Trash2 size={18} />
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => handleEditClick(user)} 
+                            className={`p-2 rounded-lg transition-colors ${
+                              editingId === user.id 
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30' 
+                                : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                            }`}
+                            title="Edit User"
+                          >
+                            <Edit size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(user.id)} 
+                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors"
+                            title="Delete User"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
